@@ -8,17 +8,23 @@ import io.socket.client.IO;
 import io.socket.client.Socket;
 
 public class Smarty extends Application {
+    private static String url;
     private static Socket smarty;
 
-    static {
+    public static void setUrl(String url) {
+        Smarty.url = url;
+    }
+
+    public static void initiate() {
         try {
-            smarty = IO.socket("http://192.168.43.118:8090/smart-user");
+            smarty = IO.socket(url);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
 
     public static Socket getSocket() {
+        initiate();
         return smarty;
     }
 }

@@ -1,12 +1,20 @@
 <resources>
     <string name="app_name">Smarty</string>
 
-    <string name="dummy_button">Dummy Button</string>
-    <string name="dummy_content">DUMMY\nCONTENT</string>
     <string name="title_activity_main">MainActivity</string>
     <string name="tab_text_1">Tab 1</string>
     <string name="tab_text_2">Tab 2</string>
-    <string name="tab_text_3">Tab 3</string>
     <string name="action_settings">Settings</string>
-    <string name="section_format">Hello World from section: %1$d</string>
+    <string name="title_activity_settings">Settings</string>
+    <string name="pref_server_url">Server URL</string>
+    <string name="pref_default_server_url">http://192.168.43.118:8090/smart-user</string>
+    <string name="conn_err_message">There is a problem connecting to server. Please check the server host in Settings->Server Host is set correctly.</string>
+    <string name="conn_err_title">Error connecting to server…</string>
+    <string name="no_connection">No connection</string>
+    <string name="connected">Back online</string>
+    <string name="snackbar_connected">Refresh</string>
+    <string name="conn_err_ok">OK</string>
+    <string name="no_pi_err_ok">OK</string>
+    <string name="no_pi_err_title">No Smart PI Found…</string>
+    <string name="no_pi_err_message">It looks like your Smart PI isn\'t configured to be connected to this server. Please check your PI configuration and try again.</string>
 </resources>

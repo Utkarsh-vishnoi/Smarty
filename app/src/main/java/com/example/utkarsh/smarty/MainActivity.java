@@ -1,11 +1,21 @@
 package com.example.utkarsh.smarty;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.os.Bundle;
+import android.preference.PreferenceManager;
+import android.support.design.widget.Snackbar;
 import android.support.design.widget.TabLayout;
-import android.support.v4.app.DialogFragment;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -19,30 +29,60 @@ import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
 import pl.droidsonroids.gif.GifImageView;
 
-public class MainActivity extends AppCompatActivity implements ConnectionErrorFragment.ConnectionErrorFragmentListener, NoPIFragment.NoPIFragmentListener {
+public class MainActivity extends AppCompatActivity {
 
     private Socket mSocket;
     private static String TAG = "MainActivity";
     private TabLayout tabs;
     private ViewPager container;
     private GifImageView loader;
-    private NoPIFragment dialog;
-    private boolean NoPIFlag = false;
+    private static boolean snackbarFlag = false;
+    private static boolean reSocketFlag = false;
+    private static BroadcastReceiver networkBroadcastReceiver = new NetworkChangeReceiver();
+
+    private View coordinatorLayout;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         setContentView(R.layout.activity_main);
+        coordinatorLayout = findViewById(R.id.main_content);
+        registerReceiver(networkBroadcastReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+        IntentFilter intentFilter = new IntentFilter("com.example.utkarsh.smarty.network");
+        LocalBroadcastManager.getInstance(this).registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                boolean status = intent.getBooleanExtra("networkState", false);
+                if (!status) {
+                    snackbarFlag = true;
+                    Snackbar snackbar = Snackbar.make(coordinatorLayout, R.string.no_connection, Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                }
+                else if (!reSocketFlag) {
+                    reSocketFlag = true;
+                    mSocket.connect();
+                }
+                if(snackbarFlag && status) {
+                    Snackbar snackbar = Snackbar.make(coordinatorLayout, R.string.connected, Snackbar.LENGTH_INDEFINITE).setAction(R.string.snackbar_connected, new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            mSocket.connect();
+                        }
+                    });
+                    snackbar.show();
+                }
+            }
+        }, intentFilter);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
         tabs = findViewById(R.id.tabs);
-        tabs.setVisibility(View.GONE);
         container = findViewById(R.id.container);
-        container.setVisibility(View.GONE);
         loader = findViewById(R.id.loader);
-
+        Smarty.setUrl(sharedPreferences.getString("server-url", null));
         mSocket = Smarty.getSocket();
         mSocket.on(Socket.EVENT_CONNECT, onConnect);
         mSocket.on(Socket.EVENT_DISCONNECT, onDisconnect);
@@ -51,27 +91,20 @@ public class MainActivity extends AppCompatActivity implements ConnectionErrorFr
         mSocket.on("authenticated", authenticated);
         mSocket.on("No PI", noPI);
         mSocket.on("statusResponse", statusResponse);
-        mSocket.connect();
-        Toast.makeText(this, "connect initiated", Toast.LENGTH_SHORT).show();
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
-            return true;
+            startActivity(new Intent(this, SettingsActivity.class));
         }
 
         return super.onOptionsItemSelected(item);
@@ -82,12 +115,6 @@ public class MainActivity extends AppCompatActivity implements ConnectionErrorFr
         @Override
         public void call(Object... args) {
             try {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(MainActivity.this, "OnConnect Fired", Toast.LENGTH_SHORT).show();
-                    }
-                });
                 mSocket.emit("authenticate", new JSONObject("{\"identifier\":\"#5521SHCBUV\"}").toString());
             } catch (JSONException e) {
                 Log.e("MainActivity", "Unexpected JSON exception", e);
@@ -102,6 +129,7 @@ public class MainActivity extends AppCompatActivity implements ConnectionErrorFr
                 @Override
                 public void run() {
                     Log.d(TAG, "run: onDisconnect");
+                    Toast.makeText(MainActivity.this, "Disconnected", Toast.LENGTH_SHORT).show();
                 }
             });
         }
@@ -114,15 +142,22 @@ public class MainActivity extends AppCompatActivity implements ConnectionErrorFr
                 @Override
                 public void run() {
                     Log.d(TAG, "run: onConnectError");
-                    Toast.makeText(MainActivity.this, "OnConnectError", Toast.LENGTH_SHORT).show();
                     mSocket.off(Socket.EVENT_CONNECT, onConnect);
                     mSocket.off(Socket.EVENT_CONNECT_TIMEOUT, onConnectError);
                     mSocket.off(Socket.EVENT_CONNECT_ERROR, onConnectError);
                     mSocket.off(Socket.EVENT_DISCONNECT, onDisconnect);
                     loader.setVisibility(View.GONE);
-                    DialogFragment dialog = new ConnectionErrorFragment();
-                    dialog.setCancelable(false);
-                    dialog.show(getSupportFragmentManager(), "Socket Connection Error");
+                    AlertDialog.Builder dialog = new AlertDialog.Builder(MainActivity.this);
+                    dialog.setTitle(R.string.conn_err_title);
+                    dialog.setMessage(R.string.conn_err_message);
+                    dialog.setIcon(R.drawable.ic_error_message);
+                    dialog.setPositiveButton(R.string.conn_err_ok, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+
+                        }
+                    });
+                    dialog.show();
                 }
             });
         }
@@ -144,27 +179,32 @@ public class MainActivity extends AppCompatActivity implements ConnectionErrorFr
                 public void run() {
                     mSocket.disconnect();
                     loader.setVisibility(View.GONE);
-                    dialog = new NoPIFragment();
-                    dialog.setCancelable(false);
-                    if(!dialog.show(getSupportFragmentManager())) {
-                        NoPIFlag = true;
-                    }
+                    AlertDialog.Builder dialog = new AlertDialog.Builder(MainActivity.this);
+                    dialog.setTitle(R.string.no_pi_err_title);
+                    dialog.setMessage(R.string.no_pi_err_message);
+                    dialog.setIcon(R.drawable.ic_error_message);
+                    dialog.setPositiveButton(R.string.no_pi_err_ok, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+
+                        }
+                    });
+                    dialog.show();
                 }
             });
         }
     };
 
-    @Override
-    protected void onPostResume() {
-        super.onPostResume();
-        if(NoPIFlag) {
-            dialog.show(getSupportFragmentManager());
-        }
-    }
-
     private Emitter.Listener statusResponse = new Emitter.Listener() {
         @Override
         public void call(Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    tabs.setVisibility(View.VISIBLE);
+                    container.setVisibility(View.VISIBLE);
+                }
+            });
             Log.d(TAG, "call: statusResponse");
             JSONObject data = (JSONObject) args[0];
             try {
@@ -174,9 +214,7 @@ public class MainActivity extends AppCompatActivity implements ConnectionErrorFr
                 boolean light1 = Boolean.parseBoolean(lights.getString("1"));
                 boolean light2 = Boolean.parseBoolean(lights.getString("2"));
                 boolean light3 = Boolean.parseBoolean(lights.getString("3"));
-                loader.setVisibility(View.GONE);
-                tabs.setVisibility(View.VISIBLE);
-                container.setVisibility(View.VISIBLE);
+
             } catch (JSONException e) {
                 e.printStackTrace();
             }
@@ -184,27 +222,14 @@ public class MainActivity extends AppCompatActivity implements ConnectionErrorFr
     };
 
     @Override
-    public void onDialogPositiveClick(DialogFragment dialog) {
-        mSocket.on(Socket.EVENT_CONNECT, onConnect);
-        mSocket.on(Socket.EVENT_DISCONNECT, onDisconnect);
-        mSocket.on(Socket.EVENT_CONNECT_ERROR, onConnectError);
-        mSocket.on(Socket.EVENT_CONNECT_TIMEOUT, onConnectError);
-        mSocket.on("authenticated", authenticated);
-        mSocket.on("No PI", noPI);
-        mSocket.connect();
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(networkBroadcastReceiver);
     }
 
     @Override
-    public void onDialogNegativeClick(DialogFragment dialog) { finish(); }
-
-    @Override
-    public void onNoPIPositiveClick(DialogFragment dialog) {
-        mSocket.connect();
-    }
-
-    @Override
-    public void onNoPINegativeClick(DialogFragment dialog) {
-        dialog.dismiss();
-        finish();
+    protected void onResume() {
+        super.onResume();
+        registerReceiver(networkBroadcastReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
     }
 }
