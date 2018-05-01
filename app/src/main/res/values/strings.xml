@@ -2,8 +2,6 @@
     <string name="app_name">Smarty</string>
 
     <string name="title_activity_main">MainActivity</string>
-    <string name="tab_text_1">Tab 1</string>
-    <string name="tab_text_2">Tab 2</string>
     <string name="action_settings">Settings</string>
     <string name="title_activity_settings">Settings</string>
     <string name="pref_server_url">Server URL</string>
@@ -17,4 +15,11 @@
     <string name="no_pi_err_ok">OK</string>
     <string name="no_pi_err_title">No Smart PI Found…</string>
     <string name="no_pi_err_message">It looks like your Smart PI isn\'t configured to be connected to this server. Please check your PI configuration and try again.</string>
+    <string name="bottom_menu_1">Temperature</string>
+    <string name="bottom_menu_2">Humidity</string>
+    <string name="bottom_menu_3">Lights</string>
+    <string name="text_lights">Lights</string>
+    <string name="error_no_network">Unable to connect to server.</string>
+    <string name="error_no_pi">No PI found. Check your smart PI configuration.</string>
+    <string name="pull_down_to_refresh">Pull Down to Refresh</string>
 </resources>

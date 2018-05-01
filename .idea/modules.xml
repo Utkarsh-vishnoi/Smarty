@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/Smarty.iml" filepath="$PROJECT_DIR$/Smarty.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/thingspeakandroid/thingspeakandroid.iml" filepath="$PROJECT_DIR$/thingspeakandroid/thingspeakandroid.iml" />
     </modules>
   </component>
 </project>

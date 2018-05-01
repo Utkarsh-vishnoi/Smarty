@@ -1,5 +1,6 @@
 package com.example.utkarsh.smarty;
 
+import android.support.v4.app.Fragment;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -9,8 +10,11 @@ import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
+import android.support.design.widget.BottomNavigationView;
 import android.support.design.widget.Snackbar;
-import android.support.design.widget.TabLayout;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AlertDialog;
@@ -22,6 +26,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toast;
 
+import org.greenrobot.eventbus.EventBus;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -32,25 +37,29 @@ import pl.droidsonroids.gif.GifImageView;
 public class MainActivity extends AppCompatActivity {
 
     private Socket mSocket;
+    private ViewPager vpPager;
     private static String TAG = "MainActivity";
-    private TabLayout tabs;
-    private ViewPager container;
     private GifImageView loader;
     private static boolean snackbarFlag = false;
-    private static boolean reSocketFlag = false;
     private static BroadcastReceiver networkBroadcastReceiver = new NetworkChangeReceiver();
+    private SharedPreferences sharedPreferences;
 
     private View coordinatorLayout;
 
+    private String temperature, humidity;
+    private boolean[] lights = new boolean[3];
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         setContentView(R.layout.activity_main);
+        setupBottomNavigation();
+
         coordinatorLayout = findViewById(R.id.main_content);
         registerReceiver(networkBroadcastReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-        IntentFilter intentFilter = new IntentFilter("com.example.utkarsh.smarty.network");
+        IntentFilter intentFilter = new IntentFilter(".network");
         LocalBroadcastManager.getInstance(this).registerReceiver(new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -60,14 +69,15 @@ public class MainActivity extends AppCompatActivity {
                     Snackbar snackbar = Snackbar.make(coordinatorLayout, R.string.no_connection, Snackbar.LENGTH_LONG);
                     snackbar.show();
                 }
-                else if (!reSocketFlag) {
-                    reSocketFlag = true;
+                else {
                     mSocket.connect();
                 }
+
                 if(snackbarFlag && status) {
                     Snackbar snackbar = Snackbar.make(coordinatorLayout, R.string.connected, Snackbar.LENGTH_INDEFINITE).setAction(R.string.snackbar_connected, new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
+                            loader.setVisibility(View.VISIBLE);
                             mSocket.connect();
                         }
                     });
@@ -78,11 +88,13 @@ public class MainActivity extends AppCompatActivity {
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        vpPager = findViewById(R.id.fragment_frame);
+        FragmentPagerAdapter adapterViewPager = new LayoutAdapter(getSupportFragmentManager());
+        vpPager.setAdapter(adapterViewPager);
 
-        tabs = findViewById(R.id.tabs);
-        container = findViewById(R.id.container);
         loader = findViewById(R.id.loader);
         Smarty.setUrl(sharedPreferences.getString("server-url", null));
+        Smarty.initiate();
         mSocket = Smarty.getSocket();
         mSocket.on(Socket.EVENT_CONNECT, onConnect);
         mSocket.on(Socket.EVENT_DISCONNECT, onDisconnect);
@@ -91,9 +103,31 @@ public class MainActivity extends AppCompatActivity {
         mSocket.on("authenticated", authenticated);
         mSocket.on("No PI", noPI);
         mSocket.on("statusResponse", statusResponse);
+        mSocket.on("switch_backflip", onBackFlip);
     }
 
-    @Override
+    private void setupBottomNavigation() {
+        BottomNavigationView bottomNavigationView = findViewById(R.id.navigation);
+
+        bottomNavigationView.setOnNavigationItemSelectedListener(new BottomNavigationView.OnNavigationItemSelectedListener() {
+            @Override
+            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+                switch(item.getItemId()) {
+                    case R.id.action_temperature:
+                        vpPager.setCurrentItem(0);
+                        return true;
+                    case R.id.action_humidity:
+                        vpPager.setCurrentItem(1);
+                        return true;
+                    case R.id.action_lights:
+                        vpPager.setCurrentItem(2);
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
@@ -114,6 +148,12 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void call(Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    loader.setVisibility(View.VISIBLE);
+                }
+            });
             try {
                 mSocket.emit("authenticate", new JSONObject("{\"identifier\":\"#5521SHCBUV\"}").toString());
             } catch (JSONException e) {
@@ -154,14 +194,26 @@ public class MainActivity extends AppCompatActivity {
                     dialog.setPositiveButton(R.string.conn_err_ok, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-
+                            Bundle bundle = new Bundle();
+                            bundle.putString("error", "no_network");
+                            loadHomeFragment(bundle);
                         }
                     });
+                    dialog.setCancelable(false);
                     dialog.show();
                 }
             });
         }
     };
+
+    private void loadHomeFragment(Bundle bundle) {
+        bundle.putBooleanArray("lights", lights);
+        Fragment fragment = new HomeFragment();
+        fragment.setArguments(bundle);
+        android.support.v4.app.FragmentTransaction fragmentTransaction = getSupportFragmentManager().beginTransaction();
+        fragmentTransaction.replace(R.id.fragment_frame, fragment);
+        fragmentTransaction.commit();
+    }
 
     private Emitter.Listener authenticated = new Emitter.Listener() {
         @Override
@@ -177,7 +229,6 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    mSocket.disconnect();
                     loader.setVisibility(View.GONE);
                     AlertDialog.Builder dialog = new AlertDialog.Builder(MainActivity.this);
                     dialog.setTitle(R.string.no_pi_err_title);
@@ -186,9 +237,12 @@ public class MainActivity extends AppCompatActivity {
                     dialog.setPositiveButton(R.string.no_pi_err_ok, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-
+                            Bundle bundle = new Bundle();
+                            bundle.putString("error", "no_pi");
+                            loadHomeFragment(bundle);
                         }
                     });
+                    dialog.setCancelable(false);
                     dialog.show();
                 }
             });
@@ -201,23 +255,43 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    tabs.setVisibility(View.VISIBLE);
-                    container.setVisibility(View.VISIBLE);
+                    vpPager.setCurrentItem(0);
+                    loader.setVisibility(View.GONE);
                 }
             });
             Log.d(TAG, "call: statusResponse");
             JSONObject data = (JSONObject) args[0];
             try {
-                String temperature = data.getString("temperature");
-                String humidity = data.getString("humidity");
-                JSONObject lights = data.getJSONObject("lights");
-                boolean light1 = Boolean.parseBoolean(lights.getString("1"));
-                boolean light2 = Boolean.parseBoolean(lights.getString("2"));
-                boolean light3 = Boolean.parseBoolean(lights.getString("3"));
-
+                temperature = data.getString("temperature");
+                humidity = data.getString("humidity");
+                JSONObject lightsObj = data.getJSONObject("lights");
+                lights[0] = Boolean.parseBoolean(lightsObj.getString("1"));
+                lights[1] = Boolean.parseBoolean(lightsObj.getString("2"));
+                lights[2] = Boolean.parseBoolean(lightsObj.getString("3"));
             } catch (JSONException e) {
                 e.printStackTrace();
             }
+        }
+    };
+
+    private Emitter.Listener onBackFlip = new Emitter.Listener() {
+
+        @Override
+        public void call(final Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    JSONObject data = (JSONObject) args[0];
+                    try {
+                        lights[0] = Boolean.parseBoolean(data.getString("1"));
+                        lights[1] = Boolean.parseBoolean(data.getString("2"));
+                        lights[2] = Boolean.parseBoolean(data.getString("3"));
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                    EventBus.getDefault().post(lights);
+                }
+            });
         }
     };
 
@@ -231,5 +305,58 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         registerReceiver(networkBroadcastReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+        String url = sharedPreferences.getString("server-url", null);
+        if(!url.equals(Smarty.getUrl()) ){
+            Toast.makeText(this, "Refreshing...", Toast.LENGTH_SHORT).show();
+            Smarty.setUrl(url);
+            Socket socket = Smarty.getSocket();
+            socket.disconnect();
+            socket.connect();
+        }
+    }
+
+    public class LayoutAdapter extends FragmentPagerAdapter {
+
+        LayoutAdapter(FragmentManager fm) {
+            super(fm);
+        }
+
+        @Override
+        public Fragment getItem(int position) {
+            Fragment fragment;
+            Bundle b = new Bundle();
+            switch (position) {
+                case 0:
+                    b.putString("temperature", temperature);
+                    break;
+                case 1:
+                    b.putString("humidity", humidity);
+                    break;
+                case 2:
+                    b.putBooleanArray("lights", lights);
+                    break;
+            }
+            switch (position) {
+                case 0:
+                    fragment = new TemperatureFragment();
+                    fragment.setArguments(b);
+                    return fragment;
+                case 1:
+                    fragment = new HumidityFragment();
+                    fragment.setArguments(b);
+                    return fragment;
+                case 2:
+                    fragment = new LightsFragment();
+                    fragment.setArguments(b);
+                    return fragment;
+                default:
+                    return null;
+            }
+        }
+
+        @Override
+        public int getCount() {
+            return 3;
+        }
     }
 }

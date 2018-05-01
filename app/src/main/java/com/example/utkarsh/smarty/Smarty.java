@@ -15,6 +15,10 @@ public class Smarty extends Application {
         Smarty.url = url;
     }
 
+    public static String getUrl() {
+        return url;
+    }
+
     public static void initiate() {
         try {
             smarty = IO.socket(url);
@@ -24,7 +28,6 @@ public class Smarty extends Application {
     }
 
     public static Socket getSocket() {
-        initiate();
         return smarty;
     }
 }

@@ -11,7 +11,7 @@ public class NetworkChangeReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Intent networkIntent = new Intent("com.example.utkarsh.smarty.network");
+        Intent networkIntent = new Intent(".network");
         networkIntent.putExtra("networkState", isConnected(context));
         LocalBroadcastManager.getInstance(context).sendBroadcast(networkIntent);
     }

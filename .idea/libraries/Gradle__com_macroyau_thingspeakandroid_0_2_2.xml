@@ -1,0 +1,12 @@
+<component name="libraryTable">
+  <library name="Gradle: com.macroyau:thingspeakandroid-0.2.2">
+    <CLASSES>
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-1/files-1.1/thingspeakandroid-0.2.2.aar/995207337b05d685ab62b73ccc640783/res" />
+      <root url="jar://$USER_HOME$/.gradle/caches/transforms-1/files-1.1/thingspeakandroid-0.2.2.aar/995207337b05d685ab62b73ccc640783/jars/classes.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.macroyau/thingspeakandroid/0.2.2/457a12fe56c3e0e4233463d3a1f085ab19343ba7/thingspeakandroid-0.2.2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
