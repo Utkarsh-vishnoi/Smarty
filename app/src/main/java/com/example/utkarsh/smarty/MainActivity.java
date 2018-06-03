@@ -27,6 +27,7 @@ import android.view.View;
 import android.widget.Toast;
 
 import org.greenrobot.eventbus.EventBus;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -43,10 +44,16 @@ public class MainActivity extends AppCompatActivity {
     private static boolean snackbarFlag = false;
     private static BroadcastReceiver networkBroadcastReceiver = new NetworkChangeReceiver();
     private SharedPreferences sharedPreferences;
+    FragmentPagerAdapter adapterViewPager;
+
+    private JSONArray temperatures = new JSONArray();
+    private JSONArray humidities = new JSONArray();
+    private JSONArray timestamps = new JSONArray();
+    private JSONArray timeDifference = new JSONArray();
+
+    private String lastUpdated;
 
     private View coordinatorLayout;
-
-    private String temperature, humidity;
     private boolean[] lights = new boolean[3];
 
     @Override
@@ -89,8 +96,8 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         vpPager = findViewById(R.id.fragment_frame);
-        FragmentPagerAdapter adapterViewPager = new LayoutAdapter(getSupportFragmentManager());
-        vpPager.setAdapter(adapterViewPager);
+        adapterViewPager = new LayoutAdapter(getSupportFragmentManager());
+//        vpPager.setAdapter(adapterViewPager);
 
         loader = findViewById(R.id.loader);
         Smarty.setUrl(sharedPreferences.getString("server-url", null));
@@ -104,6 +111,9 @@ public class MainActivity extends AppCompatActivity {
         mSocket.on("No PI", noPI);
         mSocket.on("statusResponse", statusResponse);
         mSocket.on("switch_backflip", onBackFlip);
+        Bundle bundle = new Bundle();
+        bundle.putString("error", "");
+        loadHomeFragment(bundle);
     }
 
     private void setupBottomNavigation() {
@@ -207,7 +217,6 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private void loadHomeFragment(Bundle bundle) {
-        bundle.putBooleanArray("lights", lights);
         Fragment fragment = new HomeFragment();
         fragment.setArguments(bundle);
         android.support.v4.app.FragmentTransaction fragmentTransaction = getSupportFragmentManager().beginTransaction();
@@ -252,25 +261,31 @@ public class MainActivity extends AppCompatActivity {
     private Emitter.Listener statusResponse = new Emitter.Listener() {
         @Override
         public void call(Object... args) {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    vpPager.setCurrentItem(0);
-                    loader.setVisibility(View.GONE);
-                }
-            });
             Log.d(TAG, "call: statusResponse");
             JSONObject data = (JSONObject) args[0];
             try {
-                temperature = data.getString("temperature");
-                humidity = data.getString("humidity");
                 JSONObject lightsObj = data.getJSONObject("lights");
-                lights[0] = Boolean.parseBoolean(lightsObj.getString("1"));
-                lights[1] = Boolean.parseBoolean(lightsObj.getString("2"));
-                lights[2] = Boolean.parseBoolean(lightsObj.getString("3"));
+                JSONObject graph = data.getJSONObject("graph");
+                temperatures = graph.getJSONArray("temperature");
+                humidities = graph.getJSONArray("humidity");
+                JSONObject time = graph.getJSONObject("time");
+                timestamps = time.getJSONArray("unix");
+                timeDifference = time.getJSONArray("timeDifference");
+                lastUpdated = time.getString("lastUpdated");
+                lights[0] = lightsObj.getBoolean("1");
+                lights[1] = lightsObj.getBoolean("2");
+                lights[2] = lightsObj.getBoolean("3");
             } catch (JSONException e) {
                 e.printStackTrace();
             }
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+//                    vpPager.setCurrentItem(0);
+                    vpPager.setAdapter(adapterViewPager);
+                    loader.setVisibility(View.GONE);
+                }
+            });
         }
     };
 
@@ -283,9 +298,9 @@ public class MainActivity extends AppCompatActivity {
                 public void run() {
                     JSONObject data = (JSONObject) args[0];
                     try {
-                        lights[0] = Boolean.parseBoolean(data.getString("1"));
-                        lights[1] = Boolean.parseBoolean(data.getString("2"));
-                        lights[2] = Boolean.parseBoolean(data.getString("3"));
+                        lights[0] = data.getBoolean("1");
+                        lights[1] = data.getBoolean("2");
+                        lights[2] = data.getBoolean("3");
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
@@ -306,6 +321,7 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         registerReceiver(networkBroadcastReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
         String url = sharedPreferences.getString("server-url", null);
+        assert url != null;
         if(!url.equals(Smarty.getUrl()) ){
             Toast.makeText(this, "Refreshing...", Toast.LENGTH_SHORT).show();
             Smarty.setUrl(url);
@@ -327,10 +343,16 @@ public class MainActivity extends AppCompatActivity {
             Bundle b = new Bundle();
             switch (position) {
                 case 0:
-                    b.putString("temperature", temperature);
+                    b.putString("temperatures", temperatures.toString());
+                    b.putString("timeDifference", timeDifference.toString());
+                    b.putString("timestamps", timestamps.toString());
+                    b.putString("lastUpdated", lastUpdated);
                     break;
                 case 1:
-                    b.putString("humidity", humidity);
+                    b.putString("humidities", humidities.toString());
+                    b.putString("timeDifference", timeDifference.toString());
+                    b.putString("timestamps", timestamps.toString());
+                    b.putString("lastUpdated", lastUpdated);
                     break;
                 case 2:
                     b.putBooleanArray("lights", lights);

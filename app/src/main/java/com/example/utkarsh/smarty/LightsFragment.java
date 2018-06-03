@@ -72,14 +72,10 @@ public class LightsFragment extends Fragment {
         for(int i = 0; i < lights.length; i++) {
             SwitchButton sb = lightView.getChildAt(i).findViewById(R.id.switchButton);
             if(lights[i]) {
-                if (!sb.isChecked()) {
                     sb.setChecked(true);
-                }
             }
             else {
-                if (sb.isChecked()) {
-                    sb.setChecked(false);
-                }
+                sb.setChecked(false);
             }
         }
     }
